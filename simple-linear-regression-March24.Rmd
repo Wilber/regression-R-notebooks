@@ -1,0 +1,634 @@
+---
+title: 'Introduction to Simple Linear Regression'
+author: 'Wilbur Ouma'
+date: 'March 8, 2024'
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+---
+
+## Overview
+
+In this workshop, we will introduce the Simple Linear Regression (SLR) Model. Inferences for the simple linear regression model will be discussed. Emphasis will be placed on interpreting regression coefficients.
+
+## Objectives
+
+Upon successful completion of this workshop, you should be able to:
+
+-   Fit a SLR model to data, with $R$.
+
+-   Use summary statistics from the fit to describe the relationship between a response variable and an explanatory (predictor) variable.
+
+-   Interpret model coefficients.
+
+### Model definition
+
+The goal of a SLR model is to investigate the relationship between the response and the explanatory/predictor variables. The focus of this workshop is **linear relationships**.
+
+For a brief review of linear functions, recall --- from high school algebra --- that the equation of a line describing a linear relation between $x$ and $y$ has the following algebraic form:
+
+$y = b + mx$
+
+where $m$ is the slope and $b$ is the y-intercept.
+
+![](scatter_plot.png){width="490"}
+
+The general form of the simple linear regression model --- for ***describing*** the relationship between a quantitative response (dependent) $Y$ and a **single** explanatory (independent) variable $X$ --- closely resembles the equation of a line shown above, such that:
+
+$Y = \beta_0 + \beta_1 X + \epsilon$
+
+For an individual observation,
+
+$y_i = \beta_0 + \beta_1 x_i + \epsilon_i$
+
+Where:
+
+-   $\beta_0$ is the is the population y-intercept,
+-   $\beta_1$ is the population slope,
+-   $x_i$ is the *i*th (predictor/independent) observation, and
+-   $\epsilon_i$ is the error or deviation of observation $y_i$ from the line $\beta_0 + \beta_1 x_i$,
+-   and $\epsilon \sim N (0, \sigma^2)$
+
+Together, $\beta_0$ and $\beta_1$ are known as the (unknown) population model ***coefficients*** or ***parameters***.
+
+We use training data (or random sample) to produce estimates of the parameters --- $\hat\beta_0$ and $\hat\beta_1$ to describe the relation between $Y$ and $X$, and make predictions of $\hat{y_i}$ given $x_i$.
+
+#### Fitted Values and Residuals
+
+The predicted (fitted) value of $Y$ ($\hat{y_i}$) based on the *i*th value of $X$ is obtained by:
+
+$fit_i=\hat{y_i} = \hat\beta_0 + \hat\beta_1 x_i$
+
+Then
+
+$res_i=\epsilon_i = y_i - \hat{y_i}$
+
+represents the *i*th residual --- this is the difference between the *i*th observed response value and the *i*th response value that is predicted by our linear model.
+
+![](images/paste-C19FCA0C.png){width="473"}
+
+Residual sum of squares (RSS) is a measure of distance between all responses and their fitted values:
+
+$RSS=\sum_{i=1}^{n}res{_i}{^2}$
+
+Least square estimates of $\beta_0$ and $\beta_1$ are values of intercept and slope that minimize RSS.
+
+#### Model assumptions for simple linear regression
+
+In an ideal SLR model, we obtain sub-populations of responses, one for each value of the explanatory/predictor variable, as shown in the figure below.
+
+![](images/paste-EE4FEF7A.png){width="345"}
+
+The regression of the response variable $Y$ on the explanatory variable $X$ is a mathematical relationship between the **means** of these sub-populations and the explanatory variable.
+
+The simple linear regression model specifies that this relationship is a straight line function of the explanatory variable.
+
+The following model assumptions must hold to warrant fitting a SLR model to data:
+
+1.  **Normality**: there is a normally distributed sub-population of responses for each value of the explanatory variable.
+
+2.  **Linearity**: the means of the sub-populations fall on a straight line function of the explanatory variable.
+
+3.  **Constant variance**: the sub-population standard deviations are all equal (to $\sigma$).
+
+4.  **Independence**: the selection of an observation from any of the sub-populations is independent of the selection of any other observation.
+
+## Case Study 1: Is there a statistically significant relationship between height and weight?
+
+Suppose we took a ***random*** sample from students at a large university and asked them about their **height** and **weight**. The data can be found [here](https://online.stat.psu.edu/stat500/sites/stat500/files/data/university_ht_wt.TXT). We want to determine and quantify the relationship between height and weight.
+
+We first load appropriate $R$ packages:
+
+```{r,}
+library(tidyverse)
+library(ISLR2)
+```
+
+Next, we load the height-weight data from a public repository:
+
+```{r, warning=FALSE}
+university_ht_wt<-read_csv(file = "https://figshare.com/ndownloader/files/30850678")
+
+```
+
+```{r}
+university_ht_wt<-university_ht_wt %>% 
+  drop_na() #remove rows with NA
+print.data.frame(head(university_ht_wt))
+```
+
+And examine the structure of the object
+
+```{r,}
+str(university_ht_wt)
+```
+
+We can fit a least squares line for which the sum of squared errors of predictions for all sample points is the least. We use the least squares method to find estimates for the two parameters.
+
+We use the $R$ function $lm$ to fit a simple linear regression model to the height-weight data.
+
+The basic syntax is:
+
+$lm(y ∼ x, data)$, where
+
+$y$ is the response,
+
+$x$ is the predictor, and
+
+$data$ is the data set in which these two variables are kept.
+
+Let us first check the following assumptions of a SLR model:
+
+### Linearity
+
+The relationship between $X$ and $Y$ must be linear. Check this assumption by examining a scatterplot of x and y.
+
+```{r,}
+##check linearity
+p <- ggplot(university_ht_wt, aes(x = height, y = weight)) +
+  geom_point() + 
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  ) +
+  theme_bw()
+p + scale_x_continuous(breaks = seq(min(university_ht_wt$height),max(university_ht_wt$height),2)) + 
+  scale_y_continuous(breaks = seq(min(university_ht_wt$weight),max(university_ht_wt$weight),10))
+```
+
+### Independence of errors
+
+We make sure there is no relationship between the residuals and the $Y$ variable; in other words, $Y$ is independent of errors.
+
+Check this assumption by examining a scatterplot of "residuals versus fits"; the correlation should be approximately 0.
+
+### Equal variances
+
+The variance of the residuals is the same for all values of $Y$. Check this assumption by examining the scatterplot of "residuals versus fits"; the variance of the residuals should be the same across all values of the x-axis. If the plot shows a pattern (e.g., bowtie or megaphone shape), then variances are not consistent, and this assumption has not been met.
+
+Let's first visualize residuals before generating the residuals vs fit plots.
+
+We will begin by fitting a SLR model to data.
+
+```{r,}
+##fit a SLR model to data: 
+fit <- lm(weight ~ height, data = university_ht_wt) # fit the model
+fit
+```
+
+We then obtain the predicted/fitted values and residuals.
+
+```{r}
+university_ht_wt$predicted <- predict(fit)   # Save the fitted/predicted values
+university_ht_wt$residuals <- residuals(fit) # Save the residual values
+print.data.frame(head(university_ht_wt))
+```
+
+We make a scatterplot of the data, showing the regression line and the difference between each observed response and the fitted value.
+
+```{r, warning=FALSE}
+#Visualize residuals:
+ggplot(university_ht_wt, aes(x = height, y = weight)) +
+  geom_smooth(method = "lm", se = FALSE, color = "lightgrey") +  # regression line  
+  geom_segment(aes(xend = height, yend = predicted), alpha = .2) +  # draw line from data point to regression line
+  geom_point(aes(color = abs(residuals), size = abs(residuals))) +  # observed data, size and colour-scalled 
+  scale_color_continuous(low = "green", high = "red") +          # colour of the points mapped to residual size - green smaller, red larger
+  guides(color = FALSE, size = FALSE) +  ggtitle("Residuals") +                            # Size legend removed
+  geom_point(aes(y = predicted), shape = 1) +
+  theme_bw() + 
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  ) + 
+
+scale_x_continuous(breaks = seq(min(university_ht_wt$height),max(university_ht_wt$height),2)) + 
+  scale_y_continuous(breaks = seq(min(university_ht_wt$weight),max(university_ht_wt$weight),10))
+
+```
+
+We then generate the residuals vs fit scatterplot.
+
+```{r, }
+#Residuals Vs fitted values
+residuals_fitted<-as.data.frame(cbind(fit$residuals, fit$fitted.values))
+colnames(residuals_fitted)<-c("residuals","fitted")
+
+ggplot(residuals_fitted, aes(x = fitted, y = residuals)) + geom_point() + 
+  theme_bw() + ggtitle("Residuals versus fits") +
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+### Normality of errors
+
+The residuals must be approximately normally distributed. Check this assumption by examining a normal probability plot (Q-Q plot); the observations should be near the line. You can also examine a histogram of the residuals; it should be approximately normally distributed.
+
+```{r, }
+##Normal Q-Q plot: 
+plot(fit, which = 2)
+#qqnorm(university_ht_wt$residuals)
+
+#histogram of residuals
+hist(university_ht_wt$residuals)
+```
+
+### [Research Questions on the student height data]{.underline}
+
+#### Is height a significant linear predictor of weight?
+
+The regression model that describes the relationship between $weight$ and $height$ variables is:
+
+$weight = \beta_0 + \beta_1 \cdot height + \epsilon$
+
+The hypotheses we are testing are:
+
+$H_0: \beta_1 = 0$
+
+$H_A: \beta_1 \neq 0$
+
+We compute a *t-statistic*, given by
+
+$t = \frac{\hat{\beta_1} - 0} {SE(\hat{\beta_1)}}$
+
+which measures the number of standard deviations that $\hat\beta_1$ is away from 0.
+
+If there really is no relationship between $X$ and $Y$ , then we expect that the *t-statistic* will have a *t*-distribution with *n*−2 degrees of freedom.
+
+The *t*-distribution has a bell shape and for values of *n* greater than approximately 30 and is quite similar to the standard normal distribution. Consequently, it is a simple matter to compute the probability of observing any number equal to *\|t\|* or larger in absolute value, assuming $\beta_1 = 0$. We call this probability the p-value.
+
+Roughly speaking, we interpret the p-value as follows: **a small p-value indicates that it is unlikely to observe such a substantial association between the predictor and the response due to chance, in the absence of any real association between the predictor and the response.**
+
+We obtain the model summary from the previous fit of model to the (presumably random) sample from the population:
+
+```{r}
+summary(fit)
+```
+
+The regression equation for this fit becomes: $weight = -222.48 + 5.49 *height$
+
+since the slope ($\beta_1$) is 5.49, the intercept ($\beta_0$) is -222.
+
+The test for the slope has a p-value of less than 0.001. Therefore, with a significance level of 5% (and even as low as 0.1%), we can conclude that there is enough evidence to suggest a significant association between height and weight; and that probably height is a significant linear predictor of weight.
+
+Differently stated, **an increase of one inch in height is associated with --- on average --- an increase of 5.488 lbs in weight.**
+
+Does $\beta_0$ have a meaningful interpretation?
+
+The intercept is -222. Therefore, when height is equal to 0 (an unlikely scenario), then a person's weight is predicted to be -222 pounds. It is also not possible for someone to have a height of 0 inches or weight of -222 pounds. Therefore, the intercept does not have a valid meaning.
+
+#### What's the (95%?) confidence interval for the population slope?
+
+A 95% confidence interval is defined as a range of values such that with 95% interval probability, the range will contain the true unknown value of the parameter.
+
+For linear regression, the 95% confidence interval for $\beta_1$ approximately takes the form $\hat\beta_1 \pm t_\frac{\alpha}{2} SE(\hat\beta_1)$
+
+That is, there is approximately a 95% chance that the interval will contain the true value of $\beta_1$.
+
+In the case of the student height-weight data, the 95% confidence interval for $\beta_1$ (and $\beta_0$) can be obtained by the $R$ function $confint()$:
+
+```{r}
+confint(fit)
+```
+
+#### If a student is 70 inches, what weight could we expect?
+
+We substitute the value 70 in the regression equation for the fit $weight = -222.48 + 5.49 * height$
+
+to obtain: $weight = -222.48 + 5.49* 70$
+
+```{r}
+weight <- coef(fit)[1] + coef(fit)[2]*70
+names(weight)<-NULL
+weight
+```
+
+For a student with a height of 70 inches, we would expect a weight of 161.82 pounds.
+
+We can use the $predict()$ function to produce confidence intervals and prediction intervals for the prediction of $weight$ for a given value of $height$. The prediction interval for the height of 70 inches becomes:
+
+```{r, purl=FALSE, warning=FALSE}
+predict(fit, data.frame(height = 70), interval = "prediction")
+
+```
+
+**Important Note**: If you are building a model for prediction, it is necessary to split the data intro training set (for training/fitting model) and test set (for model evaluation) to avoid the over-fitting. If the goal of linear regression is just to study and analyze the data --- for instance to describe the relationship between variables --- then splitting the data is not required.
+
+## Case Study 2: **Health Outcomes and Socioeconomic Factors---** A Study of US County Data
+
+Let us look at an example with a much larger data set.
+
+This dataset --- from [kaggle](https://www.kaggle.com/datasets/thedevastator/uncovering-trends-in-health-outcomes-and-socioec?resource=download) --- contains a wealth of health-related information and socio-economic data aggregated from multiple sources such as the American Community Survey, clinicaltrials.gov, and cancer.gov, covering a variety of US counties.
+
+In this study, we are interested in identifying factors influencing cancer mortality rates in different US counties. We first focus on the relationship between ***death rate*** (number of deaths per 100k individuals in each county) and ***poverty rate***.
+
+We first load data from file, and subset to focus on the variables of interest.
+
+```{r,}
+cancer_data <- read_csv("cancer_reg.csv")
+#View(cancer_data)
+str(cancer_data)
+```
+
+```{r}
+#subset
+cancer_data <- cancer_data[,c(4,8)]
+print.data.frame(head(cancer_data))
+```
+
+We then check model assumptions:
+
+### Linearity
+
+The relationship between $X$ and $Y$ must be linear. Check this assumption by examining a scatterplot of x and y.
+
+```{r,}
+##check linearity
+p <- ggplot(cancer_data, aes(x = povertypercent, y = target_deathrate)) +
+  geom_point() + 
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  ) +
+  theme_bw()
+p + scale_x_continuous(breaks = seq(min(cancer_data$povertypercent),max(cancer_data$povertypercent),10)) + 
+  scale_y_continuous(breaks = seq(min(cancer_data$target_deathrate),max(cancer_data$target_deathrate),100))
+```
+
+### Independence of errors and Equal variances
+
+We make sure that:
+
+1.  There is no relationship between the residuals and the $Y$ variable; and
+
+2.  The variance of the residuals is the same for all values of $Y$.
+
+To generate residuals, we first fit a SLR model to data.
+
+```{r,}
+##fit a SLR model to data: 
+fit_cancer_data <- lm(target_deathrate ~ povertypercent, data = cancer_data)
+fit_cancer_data
+```
+
+We then generate the residuals vs fit scatterplot.
+
+```{r, }
+#Residuals Vs fitted values
+residuals_fitted<-as.data.frame(cbind(fit_cancer_data$residuals, fit_cancer_data$fitted.values))
+colnames(residuals_fitted)<-c("residuals","fitted")
+
+ggplot(residuals_fitted, aes(x = fitted, y = residuals)) + geom_point() + 
+  theme_bw() + ggtitle("Residuals versus fits") +
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+### Normality of errors
+
+The residuals must be approximately normally distributed.
+
+```{r, }
+##Normal Q-Q plot: 
+plot(fit_cancer_data, which = 2)
+
+#histogram of residuals
+hist(fit_cancer_data$residuals)
+```
+
+### [Research Questions on the health outcomes data]{.underline}
+
+#### Is the rate of poverty significantly associated with cancer death rate?
+
+The regression model that describes the relationship between $deathrate$ and $poverty$ variables is:
+
+$deathrate = \beta_0 + \beta_1 \cdot poverty + \epsilon$
+
+The hypotheses we are testing are:
+
+$H_0: \beta_1 = 0$
+
+$H_A: \beta_1 \neq 0$
+
+We compute a *t-statistic*, given by
+
+$t = \frac{\hat{\beta_1} - 0} {SE(\hat{\beta_1)}}$
+
+which measures the number of standard deviations that $\hat\beta_1$ is away from 0.
+
+We obtain the model summary from the previous fit of model to data.
+
+```{r}
+summary(fit_cancer_data)
+```
+
+The regression equation for this fit becomes: $deathrate = 147.28 + 1.86 *poverty$, since the slope ($\beta_1$) is 1.86, the intercept ($\beta_0$) is 147.28.
+
+The test for the slope has a p-value of less than 0.001. Therefore, with a significance level of 5%, we can conclude that there is enough evidence to suggest that ***poverty is a significant linear predictor of cancer death rate***.
+
+Differently stated, **a 1% increase in poverty rate is associated with --- on average --- an increase of death rate of 1.86.**
+
+**Alternatively, a ten-fold increase in poverty rate is associated with an additional death of 20 people (per 100k) in a county.**
+
+Does $\beta_0$ have a meaningful interpretation?
+
+In this case study, yes! That's the ***predicted*** death rate of 147 (per 100k) at 0 poverty level. In conclusion, death still occurs when there's no poverty!
+
+Additionally, notice the proportion of variation in death rate explained by the predictor variable poverty rate: 18.4%, implying that --- as expected --- multiple factors influence death rate.
+
+### Learning Check!
+
+The $Auto$ data set in the $ISLR2$ package contains data for gas mileage, horsepower, and other information for 392 vehicles. Perform a simple linear regression with `mpg` as the response and `horsepower` as the predictor. Print out the results of the fit. Comment on the output. For example:
+
+1.  Is there a (statistically significant) relationship between the predictor and the response?
+2.  On average, by how much does the mpg change for a unit change in horsepower?
+3.  What is the predicted mpg associated with a horsepower of 98? What is the associated 95% prediction interval?
+
+## Interpretation of coefficients after log transformation
+
+Recall that when values of the predictor and response variables are not log transformed, the estimated $\hat\beta_1$ is the average change in the response variable $Y$ for every unit increase in the predictor variable $X$.
+
+However, transforming variables results in different interpretation of $\hat\beta_1$.
+
+#### When response variable is transformed (log-linear model)
+
+Given the model:
+
+$ln(Y) =\mu\{ln(Y)|X\} =\beta_0 + \beta_1 X$
+
+consider increasing $X$ by one unit.
+
+If we call $Y_{new}$ the value of $Y$ after increasing $X$ by one unit,
+
+then
+
+$ln(Y_{new}) = \beta_0 + \beta_1 (X+1) = \beta_0 + \beta_1X + \beta_1$
+
+$ln(Y_{new}) = ln(Y) + \beta_1$
+
+$ln(Y_{new}) - ln(Y) = \beta_1$
+
+$ln (\frac {Y_{new}}{Y}) = \beta_1$
+
+Exponentiating on both sides yields:
+
+$\frac {Y_{new}}{Y} = e^{\beta_1}$
+
+Therefore, a linear change in the predictor variable is associated with **multiplicative change** in the response variable of $e^{\beta_1}$. Each one-unit increase in $X$ multiplies the expected value of $Y$ by $e^{\beta_1}$.
+
+Alternatively, the percent change in $Y$ associated with a one-unit increase in $X$ is:
+
+$100\times(e^{\beta_1}-1)$
+
+#### When a predictor variable is transformed (linear-log model)
+
+We describe the mean response $Y$ in terms of multiplicative changes of $X$, given the model:
+
+$Y =\mu{\{Y|ln(X)}\} =\beta_0 + \beta_1 \cdot ln(X)$
+
+If we **double** $X$, the the new value of $Y$ ($Y_{new}$) becomes:
+
+$Y_{new} =\beta_0 + \beta_1 \cdot ln(2X)$
+
+From the product property of logarithms:
+
+$Y_{new} =\beta_0 + \beta_1 \cdot ln(2X) = \beta_0 + \beta_1 \times [ln(2) + ln(X)]$
+
+and then:
+
+$Y_{new} = \beta_0 + \beta_1 \cdot ln(X) + \beta_1 \cdot ln(2)$
+
+$Y_{new} = Y + \beta_1 \cdot ln(2)$
+
+$Y_{new} - Y = \beta_1 \cdot ln(2)$
+
+Therefore, a doubling of $X$ is associated with a $\beta_1ln(2)$ change in the mean of $Y$
+
+#### When both the predictor and response variables are transformed (log-log model)
+
+The interpretation of $\beta_1$ is a combination of the previous two: a multiplicative change in the predictor variable is associated with multiplicative change in the response variable.
+
+Given a log-log model:
+
+$ln(Y) =\mu{\{ln(Y)|ln(X)}\} =\beta_0 + \beta_1 \cdot ln(X)$, if we double $X$, then the new value of $ln(Y)$, i.e $ln(Y_{new})$ becomes:
+
+$ln(Y_{new}) = \beta_0 + \beta_1 \cdot ln(2X) = \beta_0 + \beta_1 \times [ln(2) + ln(X)] = \beta_0 + \beta_1 \cdot ln(X) + \beta_1 \cdot ln(2)$
+
+$ln(Y_{new}) = ln(Y) + \beta_1 \cdot ln(2)$
+
+$ln(Y_{new}) - ln(Y) = \beta_1 \cdot ln(2)$
+
+$ln(\frac {Y_{new}}{Y}) = \beta_1 \cdot ln(2)$
+
+Exponentiating on both sides yields:
+
+$\frac {Y_{new}}{Y} = e^{\beta_1 \cdot ln(2)} = 2^{\beta_1}$
+
+Therefore, a doubling of $X$ is associated with a multiplicative change in the response variable of $2^{\beta_1}$.
+
+## Case Study 3: On average, by how much does the mpg change for a unit change in horsepower?
+
+Let us begin by investigating model assumptions to determine whether transforming the data is warranted.
+
+### **Linearity**
+
+We generate a series of 4 plots to determine the effect of log transformation on linearity
+
+```{r}
+ggplot(Auto,aes(y = mpg, x= horsepower)) + geom_point() + theme_bw()
+ggplot(Auto,aes(y = mpg, x= log(horsepower))) + geom_point() + theme_bw()
+ggplot(Auto,aes(y = log(mpg), x= horsepower)) + geom_point() + theme_bw()
+ggplot(Auto,aes(y = log(mpg), x= log(horsepower))) + geom_point() + theme_bw()
+```
+
+The above plots suggest need for log transforming both variables.
+
+### Independence of errors and constant variance (untransformed data)
+
+```{r}
+#Fit a simple linear regression with mpg as the response and horsepower as the predictor.
+fit_auto <- lm(mpg ~ horsepower, data = Auto) # fit the model
+
+#errors: 
+residuals_fitted<-as.data.frame(cbind(fit_auto$residuals, fit_auto$fitted.values))
+colnames(residuals_fitted)<-c("residuals","fitted")
+#head(residuals_fitted)
+ggplot(residuals_fitted, aes(x = fitted, y = residuals)) + geom_point() + 
+  theme_bw() + ggtitle("Residuals versus fits") +
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+### Independence of errors and constant variance (log transformed data)
+
+```{r}
+fit_auto_log <- lm(log(mpg) ~ log(horsepower), data = Auto) # fit the model
+
+#recheck independence of errors and equal variances:
+Auto$predicted <- predict(fit_auto_log)   # Save the fitted/predicted values
+Auto$residuals <- residuals(fit_auto_log) # Save the residual values
+
+#Independence of errors & equal variance!
+residuals_fitted<-as.data.frame(cbind(fit_auto_log$residuals, fit_auto_log$fitted.values))
+colnames(residuals_fitted)<-c("residuals","fitted")
+
+ggplot(residuals_fitted, aes(x = fitted, y = residuals)) + geom_point() + 
+  theme_bw() + ggtitle("Residuals versus fits, after log transformation") +
+  theme(
+    axis.title.x = element_text(size=14),
+    axis.title.y = element_text(size=14), 
+    axis.text.x = element_text(size = 14), 
+    axis.text.y = element_text(size = 14)
+  )
+```
+
+### Distribution of errors (log transformed data)
+
+```{r}
+#Distribution of errors:
+hist(Auto$residuals)
+```
+
+### Interpretation of coefficients
+
+```{r}
+summary(fit_auto_log)
+```
+
+Since this is a log-log model, we interpret $\beta_1$ in terms of multiplicative changes in both $X$ and $Y$.
+
+**Doubling** horsepower multiples mpg by $2^{\beta_1} = 2^{-0.84185} = 0.5579$, i.e. reduces mpg by about $44.21\%$ ($1-0.5579 = 0.4421$)
+
+To obtain the proportional change in $Y$ associated with **a** $p$ **percent increase in** $X$, calculate:
+
+$\alpha = ln(\frac{100+p}{100})$
+
+and take $2^{\alpha \cdot \beta_1}$.
+
+**A 1%** increase in horsepower multiples mpg by $2^{-0.84185 \times ln(1.01)} = 0.9942$, i.e. reduces mpg by $0.58\%$.
+
+**A 10%** increase in horsepower multiples mpg by $2^{-0.84185 \times ln(1.10)} = 0.9459$, i.e. reduces mpg by $5.41\%$.
+
+## Conclusion
+
+Always check model assumptions for a SLR model
+
+The interpretation of the model coefficient changes when data transformation is applied
