@@ -1,0 +1,547 @@
+---
+title: 'Introduction to Logistic Regression with R'
+author: 'Wilbur Ouma'
+date: 'March 22, 2024'
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    latex_engine: xelatex
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Overview
+
+In this workshop, we will introduce the logistic regression model as
+special case of a linear regression model (a generalized linear model)
+where the **response variable is categorical**.
+
+We will discuss responses in terms of **probabilities and odds**.
+
+## Objectives
+
+Upon successful completion of this workshop, you should be able to:
+
+-   Understand the basics of the logistic regression model
+
+-   Fit a logistic model to data to model a binary response variable as
+    a function of a set of explanatory variables.
+
+-   Interpret coefficients of a logistic regression model
+
+    -   Understand odds and odds ratios
+
+-   Test and asses model accuracy with drop-in-deviance likelihood ratio
+    tests
+
+## Model definition
+
+Logistic regression models a binary response variable as a function of
+explanatory/predictor variable(s).
+
+For instance, given the categorical response variable $Y$ for *Disease
+State* taking on the values of *Disease* and *No disease*:
+
+$\mathrm{Y} = \begin{cases} 1 & \text{Disease} \\ 0 & \text{No disease} \end{cases}$
+
+we no longer model $Y = \mu(Y|X)$
+
+Rather we model ***probability*** that $Y$ belongs to a particular
+category/class: $Pr(Y = 1| X)$, for instance the probability of
+developing the disease.
+
+For logistic regression --- with one explanatory variable --- we model
+$Pr(Y = 1| X)$ using a function that gives outputs between 0 and 1.
+
+The **logistic function** below describes a population proportion or
+probability as a function of one predictor variable:
+
+$Pr(Y = 1| X) = \frac {e^{\beta_0 + \beta_1X_1}} {1 + e^{\beta_0 + \beta_1X_1}}$
+
+A logistic function is similar to a common S-shaped (sigmoid) curve:
+
+$S(x)=\frac{e^x}{1+e^x}$
+
+![Sigmoid curve. Image source:
+Wikipedia](images/paste-E3D173A3.png){width="430"}
+
+### The logit (log odds) function
+
+Manipulating the logistic function encountered above yields:
+
+$\frac {Pr(Y = 1| X)}{1-Pr(Y = 1| X)} = e^{\beta_0 + \beta_1X}$
+
+The quantity $\frac {Pr(Y = 1| X)}{1-Pr(Y = 1| X)}$ is the **odds**
+($\omega$)
+
+Taking natural logs yields a **log odds (logit)** function:
+
+$ln(\frac {Pr(Y = 1| X)}{1-Pr(Y = 1| X)}) = ln(\omega) = \beta_0 + \beta_1X$
+
+We can now interpret the coefficient $\beta_1$ of the logit function as
+follows:
+
+**Increasing** $X$ **by one unit changes the log odds by**
+$\beta_1$**.**
+
+**Equivalently, it multiplies the odds by** $e^{\beta_1}$
+
+The same formalism extends to multiple *p* explanatory variables
+(continuous and categorical):
+
+$ln(\omega) = \beta_0 + \beta_1X_1 + \beta_2X_2 + ...+\beta_pX_p$
+
+Exponentiating the logit yields the odds:
+
+$\omega = e^{\beta_0 + \beta_1X_1 + \beta_2X_2 + ...+\beta_pX_p}$
+
+We can then compare the **odds** between different values of a
+particular predictor $X$, for fixed values of other predictors.
+
+For instance, the odds at $X_1=A$ relative to the odds at $X_1=B$ ---
+for fixed values of other $Xs$ --- is:
+
+$\phi = \frac {\omega_A}{\omega_B} = e^{[\beta_1(A-B)]}$
+
+Unlike the case in simple and multiple linear regression, coefficients
+in logistic regression are estimated by the maximum likelihood method.
+
+### Odds and Odds Ratio (OR): A Review
+
+Consider the following data set showing the number of individuals that
+developed coronary artery disease (CAD).
+
+| Gender | Disease   | No Disease |
+|--------|-----------|------------|
+| Male   | 217 (57%) | 162 (43%)  |
+| Female | 105 (44%) | 136 (56%)  |
+
+Gender is a potential (binary) predictor of CAD, and the response
+variable is also binary (Disease/No Disease).
+
+To determine whether the two variables are independent, we can perform a
+Chi-square test of independence.
+
+```{r}
+#create a table of data
+cad <- as.table(rbind(c(217, 162), c(105, 136)))
+dimnames(cad) <- list(Gender = c("M", "F"),
+                    CAD = c("Disease","No Disease"))
+cad
+```
+
+```{r}
+#Perform a Chi-sqr test
+cad_Xsq <- chisq.test(cad)
+cad_Xsq
+
+```
+
+There's evidence for a significant association between gender and the
+likelihood of developing CAD (p-value = 0.0012).
+
+Since we have only one qualitative predictor (no quantitative
+predictor), the Chi-square test is sufficient, no need for logistic
+regression. Otherwise a logistic regression with multiple predictors
+would be used.
+
+Notice how the above test is essentially comparing proportions of two
+groups (Male and Female), a comparison that is analogous to comparing
+two means such as in t-tests or SLR model.
+
+We can quantify the significant Gender effect with Odds ratios.
+
+| Gender | Probability of Disease | Odds ($\hat\omega$)     |
+|--------|------------------------|-------------------------|
+| Male   | 0.573                  | 0.573/(1-0.573) = 1.341 |
+| Female | 0.436                  | 0.436/(1-0.436) = 0.773 |
+
+$OR = \hat\phi = \frac {\hat\omega_M}{\hat\omega_F} = 1.341\div 0.773 = 1.74$
+
+The odds of men developing CAD are estimated to be 1.74 times as large
+as the odds of women.
+
+Equivalently, the odds of men developing CAD are
+($100 \times (\hat\phi - 1) = 100 \times (1.74 -1)$) 74% greater than
+the odds of women developing CAD.
+
+In the following case study, we incorporate multiple predictors to model
+their effect on log odds of a binary response variable.
+
+## Case Study 1: Survival in the Donner Party
+
+In 1846 the Donner and Reed families left Springfield, Illinois, for
+California by covered wagon. In July, the Donner Party, as it became
+known, reached Fort Bridger, Wyoming. There, its leaders decided to
+attempt a new and untested route to the Sacramento Valley. Having
+reached its full size of 87 people and 20 wagons, the party was delayed
+by a difficult crossing of the Wasatch Range and again in the crossing
+of the desert west of the Great Salt Lake. The group became stranded in
+the eastern Sierra Nevada mountains when the region was hit by heavy
+snows in late October. By the time the last survivor was rescued on
+April 21, 1847, 40 of the 87 members had died from famine and exposure
+to extreme cold.
+
+If you like history podcast, listen to **"The Donner Party"** story in
+the **Legends of the Old West** Podcast.
+
+In 1990, an anthropologist wanted to study the theory that females are
+better able to withstand harsh conditions than are males. The data frame
+containing the ages and sexes of the adult (over 15 years) survivors and
+nonsurvivors of the Donner party is sound in the `Sleuth3` R package
+(case2001).
+
+**Research question:** **After accounting for the effects of age, did
+women have greater survival odds than men?**
+
+To model the effects of Age and Sex on survival, we fit a log odds
+(logit) function:
+
+$ln(\omega) = \beta_0 + \beta_1Age + \beta_2Sex$,
+
+where
+$\omega = \frac {Pr(Status=survived | Age, Sex)}{1-Pr(Status=survived | Age, Sex)}$
+
+We interpret $\beta_1$ as the change in **log odds** of survival
+associated with one year increase in age.
+
+Equivalently, an increase of one year in age multiplies survival
+**odds** by $e^{\beta_1}$.
+
+To answer our research question, we compare odds of survival for two
+groups (males vs females) --- *after accounting for odds of survival
+associated with age* --- and we are therefore interested in **odds
+ratios** ($\phi$).
+
+Notice that Sex is a categorical predictor variable. Therefore, we
+create an indicator/dummy variable such that:
+
+$\mathrm{sexFemale} = \begin{cases} 1 & \text{Female} \\ 0 & \text{Male} \end{cases}$
+
+The logit function becomes:
+
+$ln(\omega) = \beta_0 + \beta_1Age + \beta_2SexFemale = \mathrm{} \begin{cases} \beta_0 + \beta_1Age + \beta_2 = ln(\omega_F) & \text{Female log odds} \\ \beta_0 + \beta_1Age =ln(\omega_M) & \text{Male log odds} \end{cases}$
+
+The log odds ratio (log odds of female Vs log odds of males) becomes:
+
+$ln(\phi) = ln(\frac {\omega_F}{\omega_M}) = ln(\omega_F) - ln(\omega_M) = \beta_2$
+
+The odds ratio becomes:
+
+$\phi = e^{\beta_2}$
+
+We will obtain the (log) odds ratio from the logit fit in `R`.
+
+We first load required packages.
+
+```{r, warning=FALSE}
+#load required packages
+library(tidyverse)
+library(Sleuth3)
+library(ISLR2)
+```
+
+And load the data set
+
+```{r}
+donner_data <- case2001
+print.data.frame(head(donner_data))
+```
+
+The data set has 45 observations with two predictor variables (Age, Sex)
+and a binary categorical response variable (Status).
+
+We first make "Male" the reference level of the Sex predictor variable.
+
+```{r}
+donner_data <- donner_data %>%
+  mutate(Sex = relevel(Sex, ref = "Male"))
+
+str(donner_data)
+```
+
+We then fit an additive logit model for survival odds, using **a
+Generalized Linear Model (GLM)** function, and estimate model parameters
+using the **method of maximum likelihood**.
+
+```{r}
+fit_donner<- glm(Status ~ Age + Sex, data = donner_data, 
+                               family=binomial)
+summary(fit_donner)
+```
+
+#### **Effect of age on survival**
+
+The **log odds** of survival associated with one year increase in age
+are $\hat\beta_1 = -0.0782$.
+
+The **odds of s**urvival associated with one year increase in age are
+$e^{\hat\beta_1}=e^{-0.0782}=0.925$
+
+Equivalently, one year increase in age multiplies the odds of survival
+by 0.925, i.e the survival odds change by
+$100\times(e^{\hat\beta_1}-1) = 100\times(0.925-1) = -7\%$, implying **a
+reduction of 7%** in the odds of surviving.
+
+Recall how this interpretation of coefficients is similar to the
+interpretation encountered when the response variable $Y$ is
+log-transformed in the case of a simple/multiple linear regression
+model.
+
+**95% Confidence Intervals**
+
+We can obtain the 95% confidence intervals of the estimated coefficient
+for age:
+
+```{r}
+#95% CI of the log odds
+confint(fit_donner, 2)
+#95% CI of the odds
+exp(confint(fit_donner, 2))
+```
+
+#### **Effect of Sex on survival: did women have greater survival odds than men?**
+
+We compare the odds of survival for women and men, and are therefore
+interested in the (log) odds ratio associated with the coefficient for
+SexFemale ($\beta_2$):
+
+$\phi = e^{\beta_2}$
+
+The estimated **log odds ratio** (from the logit function above) is
+1.5972 (p-value = 0.0345).
+
+The **log odds** of survival for females are estimated to be 1.5972
+times the log odds of survival for men.
+
+The **odds** of survival for females are estimated to be 5-times
+($e^{1.5972}=4.9392$) the odds of survival for males of similar age (95%
+CI: 1.2 times to 25.2 times, see below).
+
+```{r}
+exp(confint(fit_donner,3))
+```
+
+### Learning Check!
+
+What are the odds of survival for a 55-year-old relative to the odds of
+survival for a 30-year-old? What is the associated 95% CI?
+
+Hint: Recall ---
+
+"We can then compare the odds between different values of a particular
+predictor $X$, for fixed values of other predictors. For instance, the
+odds at $X_1=A$ relative to the odds at $X_1=B$ --- for fixed values of
+other $Xs$ --- is:"
+
+$\phi = \frac {\omega_A}{\omega_B} = e^{[\beta_1(A-B)]}$
+
+### Drop-in-deviance test: A Likelihood Ratio Test
+
+Sometimes when performing data analysis involving multiple predictors,
+we want to judge the adequacy of a reduced model relative to a full
+model, i.e. we want to determine whether inclusion of additional
+predictors (and their parameters/coefficients) is warranted.
+
+Given these two logit models:
+
+Full model ($H_A$): $ln(\omega) = \beta_0 + \beta_1X_1 + \beta_2X_2$
+
+Reduced model ($H_0$): $ln(\omega) = \beta_0 + \beta_1X_1$
+
+where the reduced model is a special case (nested) of the full model, we
+can determine whether inclusion of the term $\beta_2X_2$ is warranted in
+explaining the log odds.
+
+A **Likelihood ratio test** compares the maximized likelihood ($LMAX$)
+of parameters in the full versus reduced model, such that:
+
+$LRT=2\times ln(LMAX_{Full} - 2\times ln(LMAX_{Reduced})$
+
+When the reduced model is correct (under $H_0$):
+
+$LRT \sim \chi^2$, with d.f equal to \# of parameters in full minus
+reduced model.
+
+We can obtain approximate p-value as the proportion of the $\chi^2$
+distribution that is greater than $LRT$.
+
+Some statistical packages provide a quantity called **deviance** rather
+than the maximized likelihood, wherein
+
+$deviance=constant-2\times ln(LMAX)$, and
+
+$LRT = deviance_{reduced}-deviance_{full}$
+
+## Case Study 2: Birdkeeping and Lung Cancer --- A Retrospective Observational Study
+
+A 1972--1981 health survey in The Hague, Netherlands, discovered an
+association between keeping pet birds and increased risk of lung cancer.
+
+To investigate birdkeeping as a risk factor, researchers conducted **a
+case--control study** of patients in 1985 at four hospitals in The Hague
+(population 450,000).
+
+They identified **49 cases of lung cancer** among patients who were
+registered with a general practice, who were age 65 or younger, and who
+had resided in the city since 1965.
+
+They also selected **98 controls** from a population of residents having
+the same general age structure. (Data based on *P. A. Holst, D.
+Kromhout, and R. Brand, "For Debate: Pet Birds as an Independent Risk
+Factor for Lung Cancer," British Medical Journal 297 (1988): 13--21*.)
+
+Data was gathered on the following variables:
+
+1.  𝐿𝐶: Lung cancer (𝐿𝐶=1 for lung cancer patient, 0 for control)
+
+2.  𝐹𝑀: Sex (𝐹=1, 𝑀=0)
+
+3.  𝐴𝐺: Age, in years
+
+4.  𝑆𝑆: Socioeconomic status (𝐻𝑖𝑔ℎ=1, 𝐿𝑜𝑤=0)
+
+5.  𝑌𝑅: Years of smoking prior to diagnosis or examination
+
+6.  𝐵𝐾: Indicator of birdkeeping
+
+7.  CD: Average rate of smoking (in cigarettes per day)
+
+Data is contained in the `Sleuth3` R package (case2002).
+
+**Research question: after age, socioeconomic status, and smoking have
+been controlled for, is [*an additional risk*]{.underline} of developing
+lung cancer associated with birdkeeping?**
+
+We will answer this question by performing a drop-in-deviance test to
+determine whether the term for birdkeeping is significant.
+
+$H_0: ln(\omega_{LC}) = \beta_0 + \beta_1FM + \beta_2SS + \beta_3AG + \beta_4YR + \beta_5CD$
+
+$H_A: ln(\omega_{LC}) = \beta_0 + \beta_1FM + \beta_2SS + \beta_3AG + \beta_4YR + \beta_5CD + \beta_6BK$
+
+We load the data, and reorder the levels so that the model is for log
+odds of cancer, and for BK categorical variable make "NoBird" reference
+level.
+
+```{r}
+birdkeeping<-case2002
+birdkeeping$LC <- factor(birdkeeping$LC, levels=c("NoCancer","LungCancer"))
+
+birdkeeping <- birdkeeping %>%
+  mutate(BK = relevel(BK, ref = "NoBird"))
+
+print.data.frame(head(birdkeeping))
+str(birdkeeping)
+```
+
+Next, we fit a full logit model to the data:
+
+```{r}
+fit_birdkeeping <- glm(LC ~ FM + SS + AG + YR + CD + BK,
+                         data = birdkeeping, family=binomial)
+
+summary(fit_birdkeeping)
+```
+
+It appears that there's an effect of Years of Smoking and of Bird
+Keeping after accounting for other variables; no obvious effects of
+other variables.
+
+#### A Strategy for Variable Selection: backward elimination
+
+We can start building a logistic regression model for $H_0$ using
+backward elimination (**withholding BK**), until we remain with
+significant predictors.
+
+We sequentially remove variables based on p-value of their coefficients.
+
+```{r}
+myGlm1 <- glm(LC ~ FM + SS + AG + YR + CD, data = birdkeeping, family=binomial)
+summary(myGlm1)
+```
+
+```{r}
+myGlm2 <- update(myGlm1, ~ . - SS)        
+summary(myGlm2)
+```
+
+```{r}
+myGlm3 <- update(myGlm2, ~ . - CD)   
+summary(myGlm3)
+```
+
+```{r}
+myGlm4 <- update(myGlm3, ~ . - FM)
+summary(myGlm4) # Everything left has a small p-value (retain the intercept)
+```
+
+We now re-fit our full model $H_A$ **to include BK**.
+
+```{r}
+fit_birdkeeping <- update(myGlm4, ~ . + BK)
+summary(fit_birdkeeping)
+```
+
+**Research question:** after age, socioeconomic status, and smoking have
+been controlled for, is **an additional risk** of developing lung cancer
+associated with birdkeeping?
+
+And test for the birdkeeping effect using the drop-in-deviance LRT:
+
+$H_0: ln(\omega_{LC}) = \beta_0 + \beta_1AG + \beta_2YR$
+
+$H_A: ln(\omega_{LC}) = \beta_0 + \beta_1AG + \beta_2YR + \beta_3BK$
+
+$LRT = deviance_{H_0}-deviance_{H_A}$
+
+```{r}
+anova(myGlm4, fit_birdkeeping) # Drop-in-deviance = 12.612 on 1 d.f.
+
+```
+
+And we calculate **a 1-sided p-value** (question is on additional risk,
+rather than differences in risk)
+
+```{r}
+(1 - pchisq(12.612,1))/2 #p-value: 0.0001916391
+```
+
+**Interpretation:**
+
+There is evidence for additional risk of developing lung cancer
+associated with birdkeeping, after age and years of smoking have been
+accounted for (one-sided p-value = 0.000192).
+
+What are the odds of lung cancer for people who kept birds compared to
+those who didn't, after accounting for other variables?
+
+```{r}
+beta <- fit_birdkeeping$coef  # Extract estimated coefficients
+beta
+exp(beta[4])   # 3.961248                
+exp(confint(fit_birdkeeping,4))   # 1.836764 8.900840  
+```
+
+The odds of lung cancer for people who kept birds were estimated to be
+**4 times** the odds of lung cancer for people of similar age, sex, \#
+smoking history, and socio-economic status who didn't keep birds.
+
+### Conclusion
+
+-   When we encounter a data set with a binary response variable and a
+    set of predictor variables, we can model the odds of the response as
+    function of the predictors using the logit function.
+
+    -   When only one categorical predictor is used, then a Chi-square
+        test for independence would suffice.
+
+-   The coefficients of the predictors of the logit function denote the
+    log odds for the response with each unit increase in the value of
+    continuous predictor; or the log odds ratio in case of a categorical
+    predictor.
+
+-   Odds are obtained by exponentiating the estimated coefficients of
+    the logit function.
